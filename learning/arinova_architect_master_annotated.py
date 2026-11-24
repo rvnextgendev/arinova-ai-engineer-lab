@@ -280,8 +280,8 @@ def ingest(path: str,tenant: str,actor: str):
     authorize(actor,'ingest',tenant)
     # Store list(extract_pdf(path)) in pages.
     pages=list(extract_pdf(path))
-    # Store [(page, part) for page, text in pages for part in chunks(text, C.chunk_chars, C.overlap)] in items.
-    items=[(page,part) for page,text in pages for part in chunks(text,C.chunk_chars,C.overlap)]
+    # Store [(page, part) for page, text in pages for part in chunks(text, C.chunk_chars, C.overlap_chars)] in items.
+    items=[(page,part) for page,text in pages for part in chunks(text,C.chunk_chars,C.overlap_chars)]
     # Check not items; execute this branch only if true.
     if not items: raise ValueError('no extractable PDF text; OCR required')
     # Store hashlib.sha256(Path(path).read_bytes()).hexdigest()[:24] in doc_id.
@@ -301,8 +301,8 @@ def ingest(path: str,tenant: str,actor: str):
                 chunk_id=hashlib.sha256(f'{tenant}:{doc_id}:{page}:{part}'.encode()).hexdigest()
                 # Call conn.execute to perform this step.
                 conn.execute('''INSERT INTO chunks(id,tenant,document_id,page,content,embedding)
-                  VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING''',
-                  (chunk_id,tenant,doc_id,page,part,vector))
+                  VALUES(%s,%s,%s,%s,%s,%s::vector) ON CONFLICT(id) DO NOTHING''',
+                  (chunk_id,tenant,doc_id,page,part,str(vector)))
         # Call audit to perform this step.
         audit(conn,tenant,actor,'document_ingested',document_id=doc_id,chunks=len(items))
     # Call event to perform this step.
@@ -333,7 +333,7 @@ def hybrid_search(question: str,tenant: str,top_k=5):
         # WHERE tenant = %s is critical: prevent cross-tenant retrieval.
         # Store conn.execute('SELECT id,document_id,page,content FROM chunks\n            WHERE tenant=%s ORDER BY embedding <=> %s LIMIT 20', (tenant, vector)).fetchall() in vector_rows.
         vector_rows=conn.execute('''SELECT id,document_id,page,content FROM chunks
-            WHERE tenant=%s ORDER BY embedding <=> %s LIMIT 20''',(tenant,vector)).fetchall()
+            WHERE tenant=%s ORDER BY embedding <=> %s::vector LIMIT 20''',(tenant,str(vector))).fetchall()
         # Store conn.execute("SELECT id,document_id,page,content FROM chunks\n            WHERE tenant=%s AND search_tsv @@ plainto_tsquery('english',%s)\n            ORDER BY ts_rank_cd(search_ts in lexical_rows.
         lexical_rows=conn.execute('''SELECT id,document_id,page,content FROM chunks
             WHERE tenant=%s AND search_tsv @@ plainto_tsquery('english',%s)

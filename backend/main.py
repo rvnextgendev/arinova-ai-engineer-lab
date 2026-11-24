@@ -70,7 +70,7 @@ def ingest(file: UploadFile = File(...), tenant: str = Form("acme"), actor: str 
         path = Path(directory) / "upload.pdf"
         path.write_bytes(data)
         pages = run(lambda: list(lab.extract_pdf(str(path))))
-        preview = [{"page": p, "chunks": lab.chunks(t, lab.C.chunk_chars, lab.C.overlap)} for p,t in pages]
+        preview = [{"page": p, "chunks": lab.chunks(t, lab.C.chunk_chars, lab.C.overlap_chars)} for p,t in pages]
         started = time.perf_counter()
         run(lab.ingest, str(path), tenant, actor)
         return {"pages": len(pages), "chunk_count": sum(len(p["chunks"]) for p in preview),
