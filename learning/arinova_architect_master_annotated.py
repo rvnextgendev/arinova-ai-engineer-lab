@@ -89,9 +89,9 @@ class Config:
     # Store 1200 in max_input_chars.
     max_input_chars: int = 1200
     # Store 30 in timeout_seconds.
-    timeout_seconds: int = 30
+    timeout_seconds: int = int(os.getenv('ARINOVA_LLM_TIMEOUT_SECONDS', '180'))
     # Store 3 in max_attempts.
-    max_attempts: int = 3
+    max_attempts: int = int(os.getenv('ARINOVA_LLM_MAX_ATTEMPTS', '2'))
     # Store 3 in circuit_failures.
     circuit_failures: int = 3
     # Store 40 in circuit_reset_seconds.
@@ -410,7 +410,7 @@ def retry(fn,attempts=3):
 def ollama(prompt: str,temperature=0.0)->str:
     # Store json.dumps({'model': C.model, 'prompt': prompt, 'stream': False, 'options': {'temperature': temperature, 'num_predict': 450}}).encode() in payload.
     payload=json.dumps({'model':C.model,'prompt':prompt,'stream':False,
-                        'options':{'temperature':temperature,'num_predict':450}}).encode()
+                        'options':{'temperature':temperature,'num_predict':int(os.getenv('ARINOVA_LLM_MAX_TOKENS', '256'))}}).encode()
     # Store request.Request(C.ollama_url, data=payload, headers={'Content-Type': 'application/json'}) in req.
     req=request.Request(C.ollama_url,data=payload,headers={'Content-Type':'application/json'})
     # Enter managed resource/context; cleanup occurs on exit, including exceptions.

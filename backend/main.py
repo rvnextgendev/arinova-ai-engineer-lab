@@ -34,6 +34,11 @@ class Feedback(Question):
 def run(fn, *args):
     try:
         return fn(*args)
+    except lab.CircuitOpen as exc:
+        raise HTTPException(503, 'Model circuit open; wait for recovery before retrying') from exc
+    except TimeoutError as exc:
+        logging.exception('Local model timed out')
+        raise HTTPException(504, 'Local model timed out; check Ollama and ARINOVA_LLM_TIMEOUT_SECONDS') from exc
     except PermissionError as exc:
         raise HTTPException(403, str(exc)) from exc
     except ValueError as exc:
