@@ -22,6 +22,7 @@ services:
       ARINOVA_MODEL: ${ARINOVA_MODEL:-llama3.2}
       ARINOVA_ALLOW_DEMO_IDENTITY: "1"
       ARINOVA_ENABLE_LLM_JUDGE: ${ARINOVA_ENABLE_LLM_JUDGE:-0}
+      ARINOVA_LANGGRAPH_POSTGRES: ${ARINOVA_LANGGRAPH_POSTGRES:-0}
       HF_HOME: /models
     extra_hosts: ["host.docker.internal:host-gateway"]
     ports: ["127.0.0.1:8000:8000", "127.0.0.1:5678:5678"]
@@ -47,7 +48,9 @@ services:
     image: grafana/grafana:12.1.0
     profiles: [observability]
     ports: ["127.0.0.1:3000:3000"]
-    volumes: ["./monitoring/datasource.yml:/etc/grafana/provisioning/datasources/local.yml:ro"]
+    volumes: ["./monitoring/datasource.yml:/etc/grafana/provisioning/datasources/local.yml:ro", "./monitoring/dashboard-provider.yml:/etc/grafana/provisioning/dashboards/local.yml:ro", "./monitoring/dashboards:/var/lib/grafana/dashboards:ro", "grafana_data:/var/lib/grafana"]
 volumes:
   pgdata:
   models:
+
+  grafana_data:

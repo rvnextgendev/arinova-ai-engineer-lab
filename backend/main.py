@@ -13,6 +13,10 @@ from urllib.request import urlopen
 @asynccontextmanager
 async def lifespan(app):
     lab.initialize()
+    if os.getenv("ARINOVA_LANGGRAPH_POSTGRES") == "1":
+        lab.initialize_langgraph_checkpointer()
+    with lab.db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS local_telemetry (id BIGSERIAL PRIMARY KEY, payload JSONB NOT NULL)")
     yield
 
 app = FastAPI(title="AriNova Local Debug Studio", lifespan=lifespan)
@@ -160,8 +164,18 @@ async def monitor(request: Request, call_next):
         latency.labels(route).observe(elapsed)
         if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate"):
             with history_lock:
-                history.append({"trace_id":trace,"route":route,"status":status,
-                                "milliseconds":round(elapsed*1000,2),"events":events})
+                record = {"trace_id":trace,"route":route,"status":status,
+                          "milliseconds":round(elapsed*1000,2),"events":events}
+                history.append(record)
+            try:
+                from starlette.concurrency import run_in_threadpool
+                def persist():
+                    from psycopg.types.json import Jsonb
+                    with lab.db() as conn:
+                        conn.execute("INSERT INTO local_telemetry(payload) VALUES (%s)", (Jsonb(record),))
+                await run_in_threadpool(persist)
+            except Exception:
+                logging.exception("Telemetry persistence failed")
 
 @app.get("/metrics")
 def metrics():
@@ -169,8 +183,8 @@ def metrics():
 
 @app.get("/telemetry")
 def traces():
-    with history_lock:
-        return list(history)
+    with lab.db() as conn:
+        return [r[0] for r in reversed(conn.execute("SELECT payload FROM local_telemetry ORDER BY id DESC LIMIT 200").fetchall())]
 
 class Judge(Question):
     evidence: str = Field(max_length=12000)

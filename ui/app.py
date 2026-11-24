@@ -75,7 +75,7 @@ elif page == "LLM-as-a-Judge":
         show(call("POST","/judge",json={**q,"evidence":evidence,"answer":answer}))
     st.caption("Advisory grounding score, not proof of correctness.")
 elif page in ["Live telemetry","Cost and usage"]:
-    st.caption("Actual recent API requests; in-memory history resets on restart. Local demo data is shared across demo roles.")
+    st.caption("Actual recent API requests; latest 200 persisted records. Local demo data is shared across demo roles.")
     rows = call("GET","/telemetry") or []
     usage = [e for r in rows for e in r["events"] if e["name"]=="ollama_usage"]
     if page == "Cost and usage":
