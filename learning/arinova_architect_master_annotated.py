@@ -447,7 +447,8 @@ def checkpoint(workflow_id,tenant,actor,status,state):
     # Enter managed resource/context; cleanup occurs on exit, including exceptions.
     with db() as conn:
         # Call conn.execute to perform this step.
-        conn.execute('''INSERT INTO workflows(id,tenant,actor,status,state)          VALUES(%s,%s,%s,%s,%s::jsonb) ON CONFLICT(id) DO UPDATE
+        conn.execute('''INSERT INTO workflows(id,tenant,actor,status,state)
+          VALUES(%s,%s,%s,%s,%s::jsonb) ON CONFLICT(id) DO UPDATE
           SET status=EXCLUDED.status,state=EXCLUDED.state,updated_at=now()''',
           (workflow_id,tenant,actor,status,json.dumps(state)))
 
@@ -896,7 +897,8 @@ def evaluate(tenant,actor):
         # Store hybrid_search(case['question'], tenant) in docs.
         docs=hybrid_search(case['question'],tenant)
         # Store grounded_answer(case['question'], docs) in response.
-        response=grounded_answer(case['question'],docs)        # Store case['expected'].lower() in response['answer'].lower() in exact.
+        response=grounded_answer(case['question'],docs)
+        # Store case['expected'].lower() in response['answer'].lower() in exact.
         exact=case['expected'].lower() in response['answer'].lower()  # toy metric
         # Store case['relevant_document_id'] in relevant.
         relevant=case['relevant_document_id']
@@ -1345,7 +1347,8 @@ def configure_otel():
         exporter=ConsoleSpanExporter()
     # Call provider.add_span_processor to perform this step.
     provider.add_span_processor(BatchSpanProcessor(exporter))
-    # Call trace.set_tracer_provider to perform this step.    trace.set_tracer_provider(provider)
+    # Call trace.set_tracer_provider to perform this step.
+    trace.set_tracer_provider(provider)
     # Return trace.get_tracer('arinova') to the caller.
     return trace.get_tracer('arinova')
 
