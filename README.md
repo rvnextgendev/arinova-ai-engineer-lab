@@ -45,3 +45,7 @@ This repository provides a learning/reference pipeline, **not a production-certi
 The PDF in this branch is a **searchable, text-reflowed reproduction** of the 48-page original offline handbook. It contains the extracted written material and source code but not all original visual typography/layout. Refer to the separate Python file for exact source.
 
 See [Learning Roadmap](LEARNING_ROADMAP.md) for a day-by-day study plan.
+
+## Local interactive Debug Studio
+
+See [Docker + Ollama setup and VS Code debugging](LOCAL_DEBUG.md). Run `setup.ps1` then `start.ps1` on Windows. UI: http://localhost:8501. Local-only demo; integration testing pending.

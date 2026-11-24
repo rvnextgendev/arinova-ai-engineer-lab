@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Docker API",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/app"
+        }
+      ],
+      "justMyCode": false
+    },
+    {
+      "name": "Offline pipeline tests",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/learning/arinova_architect_master_annotated.py",
+      "args": [
+        "--pipeline-tests"
+      ],
+      "console": "integratedTerminal"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: arinova
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d arinova"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  api:
+    build: .
+    image: arinova-learning:local
+    command: python -m debugpy --listen 0.0.0.0:5678 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+    environment:
+      ARINOVA_DATABASE_URL: postgresql://postgres:postgres@db:5432/arinova
+      ARINOVA_OLLAMA_URL: ${ARINOVA_OLLAMA_URL:-http://host.docker.internal:11434/api/generate}
+      ARINOVA_MODEL: ${ARINOVA_MODEL:-llama3.2}
+      ARINOVA_ALLOW_DEMO_IDENTITY: "1"
+      ARINOVA_ENABLE_LLM_JUDGE: ${ARINOVA_ENABLE_LLM_JUDGE:-0}
+      HF_HOME: /models
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["127.0.0.1:8000:8000", "127.0.0.1:5678:5678"]
+    volumes: [./learning:/app/learning, ./backend:/app/backend, models:/models]
+    depends_on:
+      db:
+        condition: service_healthy
+  ui:
+    image: arinova-learning:local
+    build: .
+    command: streamlit run ui/app.py --server.address=0.0.0.0 --server.port=8501 --server.maxUploadSize=15
+    environment:
+      API_URL: http://api:8000
+    ports: ["127.0.0.1:8501:8501"]
+    volumes: [./ui:/app/ui]
+    depends_on: [api]
+volumes:
+  pgdata:
+  models:
