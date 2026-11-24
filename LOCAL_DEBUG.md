@@ -22,3 +22,6 @@ Offline checks:
 Stop with docker compose down (volumes retained). Do not use down -v unless intentionally deleting database and model cache.
 
 Limitations: local demo identities, no production authentication, no OCR, no atomic multi-worker claim, no integrated MCP execution or LoRA UI, no full node-level trace UI. Approval is a separate example. Debug port is bound to loopback. No cloud deployment. Docker build and real model integration must be validated on your machine.
+
+## Expanded UI
+Run `docker compose --profile observability up -d --build` for optional Prometheus and Grafana. Grafana default local login admin/admin; change it. Explore `arinova_requests_total` and `arinova_request_seconds_bucket`. UI telemetry records actual request durations, graph node timings, retrieval ranks and Ollama token counts in bounded memory. No Jaeger/Loki export yet. Judge uses the configured generation model; standalone judge is advisory. MCP discovery requires allowlisted server configuration; training candidates can be exported but training is CLI only. No production security or full integration validation.

@@ -125,3 +125,86 @@ def workflow(action: str, item_id: str, tenant: str = "acme"):
     if action not in functions:
         raise HTTPException(404, "Unknown action")
     return run(functions[action], item_id, tenant, "admin")
+
+
+# Additional learning endpoints. Local demo only.
+from learning import telemetry
+from fastapi import Request
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from fastapi.responses import Response
+import threading
+from collections import deque
+import uuid
+history = deque(maxlen=200)
+history_lock = threading.Lock()
+requests_total = Counter("arinova_requests_total","HTTP requests",["route","status"])
+latency = Histogram("arinova_request_seconds","HTTP latency",["route"])
+
+@app.middleware("http")
+async def monitor(request: Request, call_next):
+    start = time.perf_counter()
+    events = []
+    token = telemetry.events.set(events)
+    trace = uuid.uuid4().hex
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        response.headers["X-Trace-ID"] = trace
+        return response
+    finally:
+        telemetry.events.reset(token)
+        route = getattr(request.scope.get("route"),"path","unknown")
+        elapsed = time.perf_counter()-start
+        requests_total.labels(route,str(status)).inc()
+        latency.labels(route).observe(elapsed)
+        if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate"):
+            with history_lock:
+                history.append({"trace_id":trace,"route":route,"status":status,
+                                "milliseconds":round(elapsed*1000,2),"events":events})
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+@app.get("/telemetry")
+def traces():
+    with history_lock:
+        return list(history)
+
+class Judge(Question):
+    evidence: str = Field(max_length=12000)
+    answer: str = Field(max_length=4000)
+
+@app.post("/judge")
+def judge(q: Judge):
+    run(lab.authorize,q.actor,"ask",q.tenant)
+    return run(lab.llm_judge,q.question,q.evidence,q.answer)
+
+@app.post("/prompt")
+def prompt(q: Question):
+    run(lab.authorize,q.actor,"ask",q.tenant)
+    docs = run(lab.hybrid_search,q.question,q.tenant)
+    return {"prompt":lab.make_prompt(q.question,docs),"evidence":docs}
+
+class ChunkInput(BaseModel):
+    text: str = Field(max_length=20000)
+    size: int = Field(default=1100,ge=50,le=3000)
+    overlap: int = Field(default=180,ge=0,le=2999)
+
+@app.post("/chunk")
+def chunk(q: ChunkInput):
+    return run(lab.chunks,q.text,q.size,q.overlap)
+
+@app.get("/circuit")
+def circuit():
+    return {"failures":lab.BREAKER.failures,"opened_at_monotonic":lab.BREAKER.opened_at,
+            "reset_seconds":lab.BREAKER.reset_seconds}
+
+@app.get("/mcp/tools")
+def mcp_tools():
+    return run(lab.mcp_list_tools)
+
+@app.get("/training/candidates")
+def candidates(tenant: str="acme"):
+    return run(lab.export_finetune_candidates,tenant,"admin")

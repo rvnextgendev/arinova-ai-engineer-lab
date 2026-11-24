@@ -341,6 +341,9 @@ def hybrid_search(question: str,tenant: str,top_k=5):
             (tenant,question,question)).fetchall()
     # Store reciprocal_rank_fusion(vector_rows, lexical_rows) in candidates.
     candidates=reciprocal_rank_fusion(vector_rows,lexical_rows)
+    from learning.telemetry import emit
+    emit("retrieval_ranks", vector=[r[0] for r in vector_rows],
+         keyword=[r[0] for r in lexical_rows], fused=[r[0] for r in candidates])
     # Check not candidates; execute this branch only if true.
     if not candidates: return []
     global _reranker
@@ -393,7 +396,10 @@ def retry(fn,attempts=3):
     # Process each attempt from range(attempts).
     for attempt in range(attempts):
         # Attempt this operation; handle errors or cleanup in the following clauses.
-        try: return BREAKER.call(fn)
+        try:
+            from learning.telemetry import emit
+            emit("retry_attempt", attempt=attempt+1)
+            return BREAKER.call(fn)
         except (TimeoutError,ConnectionError,OSError,CircuitOpen):
             # Check attempt == attempts - 1; execute this branch only if true.
             if attempt==attempts-1: raise
@@ -410,7 +416,11 @@ def ollama(prompt: str,temperature=0.0)->str:
     # Enter managed resource/context; cleanup occurs on exit, including exceptions.
     with request.urlopen(req,timeout=C.timeout_seconds) as response:
         # Return json.loads(response.read())['response'] to the caller.
-        return json.loads(response.read())['response']
+        payload = json.loads(response.read())
+        from learning.telemetry import emit
+        emit("ollama_usage", model=C.model, input_tokens=payload.get("prompt_eval_count"),
+             output_tokens=payload.get("eval_count"), duration_ns=payload.get("total_duration"))
+        return payload['response']
 
 # ----- 08 Grounded generation: citations are constructed by code, not trusted from LLM.
 # Define make_prompt; inputs: question, docs. The body runs only when called.
@@ -718,7 +728,8 @@ def run_unified_graph(question: str, tenant: str, workflow_id: str):
     for name,fn in [('retrieve',retrieve_node),('validate_context',validate_context_node),
                     ('generate',generate_node),('evaluate',evaluate_node)]:
         # Call graph.add_node to perform this step.
-        graph.add_node(name,fn)
+        from learning.telemetry import measured
+        graph.add_node(name,measured(name,fn))
     # Call graph.add_edge to perform this step.
     graph.add_edge(START,'retrieve')
     # Call graph.add_edge to perform this step.

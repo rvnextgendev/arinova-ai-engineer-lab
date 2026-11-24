@@ -38,6 +38,16 @@ services:
     ports: ["127.0.0.1:8501:8501"]
     volumes: [./ui:/app/ui]
     depends_on: [api]
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [observability]
+    ports: ["127.0.0.1:9090:9090"]
+    volumes: ["./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+  grafana:
+    image: grafana/grafana:12.1.0
+    profiles: [observability]
+    ports: ["127.0.0.1:3000:3000"]
+    volumes: ["./monitoring/datasource.yml:/etc/grafana/provisioning/datasources/local.yml:ro"]
 volumes:
   pgdata:
   models:
