@@ -49,3 +49,7 @@ See [Learning Roadmap](LEARNING_ROADMAP.md) for a day-by-day study plan.
 ## Local interactive Debug Studio
 
 See [Docker + Ollama setup and VS Code debugging](LOCAL_DEBUG.md). Run `setup.ps1` then `start.ps1` on Windows. UI: http://localhost:8501. Local-only demo; integration testing pending.
+
+## HTML Skill Studio
+
+Open http://localhost:8000/studio after `docker compose restart api`. Four registered skills, real API calls, PDF upload, retrieval inspection, circuit status and telemetry. See [presentation notes](docs/SKILL_ARCHITECTURE.md). Local demo only; tests added but runtime validation pending.

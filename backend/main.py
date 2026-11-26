@@ -167,7 +167,7 @@ async def monitor(request: Request, call_next):
         elapsed = time.perf_counter()-start
         requests_total.labels(route,str(status)).inc()
         latency.labels(route).observe(elapsed)
-        if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate"):
+        if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate","/skills/{skill_id}/execute"):
             with history_lock:
                 record = {"trace_id":trace,"route":route,"status":status,
                           "milliseconds":round(elapsed*1000,2),"events":events}
@@ -227,3 +227,19 @@ def mcp_tools():
 @app.get("/training/candidates")
 def candidates(tenant: str="acme"):
     return run(lab.export_finetune_candidates,tenant,"admin")
+
+# Local skill studio: reviewed, explicitly registered handlers only.
+from backend.skill_engine import registry, execute
+from fastapi.responses import FileResponse
+
+@app.get("/studio")
+def studio():
+    return FileResponse(Path(__file__).parent / "studio.html")
+
+@app.get("/skills")
+def skills():
+    return registry()
+
+@app.post("/skills/{skill_id}/execute")
+def execute_skill(skill_id: str, q: Question):
+    return run(execute, skill_id, q.question, q.tenant, q.actor, q.request_id)
