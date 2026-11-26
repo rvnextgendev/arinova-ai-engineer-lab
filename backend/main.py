@@ -167,7 +167,7 @@ async def monitor(request: Request, call_next):
         elapsed = time.perf_counter()-start
         requests_total.labels(route,str(status)).inc()
         latency.labels(route).observe(elapsed)
-        if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate","/skills/{skill_id}/execute"):
+        if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate","/skills/{skill_id}/execute","/deep-agent/{skill_id}/execute","/skills/{skill_id}/evaluate"):
             with history_lock:
                 record = {"trace_id":trace,"route":route,"status":status,
                           "milliseconds":round(elapsed*1000,2),"events":events}
