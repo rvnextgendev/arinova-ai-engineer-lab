@@ -138,6 +138,7 @@ def workflow(action: str, item_id: str, tenant: str = "acme"):
 
 # Additional learning endpoints. Local demo only.
 from learning import telemetry
+from backend import live_trace
 from fastapi import Request
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
@@ -156,12 +157,20 @@ async def monitor(request: Request, call_next):
     token = telemetry.events.set(events)
     trace = uuid.uuid4().hex
     status = 500
+    live_id = request.headers.get("X-Live-Run", "")
+    tracked = live_trace.valid_id(live_id) and live_trace.start(live_id)
+    sink_token = telemetry.live_sink.set((lambda name, **fields: live_trace.publish(live_id, name, **fields)) if tracked else None)
+    if tracked:
+        telemetry.emit("request_received", status="running")
     try:
         response = await call_next(request)
         status = response.status_code
         response.headers["X-Trace-ID"] = trace
         return response
     finally:
+        if tracked:
+            live_trace.finish(live_id, status)
+        telemetry.live_sink.reset(sink_token)
         telemetry.events.reset(token)
         route = getattr(request.scope.get("route"),"path","unknown")
         elapsed = time.perf_counter()-start
@@ -285,3 +294,12 @@ class MCPAgentQuestion(Question):
 @app.post("/mcp/agent/{engine}")
 def mcp_agent(engine: str, q: MCPAgentQuestion):
     return run(execute_mcp_agent, engine, q.question, q.tenant, q.actor, q.approved)
+
+@app.get("/live-runs/{run_id}")
+def live_run(run_id: str):
+    if not live_trace.valid_id(run_id):
+        raise HTTPException(404, "Unknown live run")
+    result = live_trace.snapshot(run_id)
+    if result is None:
+        raise HTTPException(404, "Unknown live run")
+    return result

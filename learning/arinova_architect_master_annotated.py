@@ -327,20 +327,29 @@ def reciprocal_rank_fusion(vector_rows,lexical_rows,k=60):
 # Define hybrid_search; inputs: question, tenant, top_k. The body runs only when called.
 def hybrid_search(question: str,tenant: str,top_k=5):
     # Store embed([question])[0] in vector.
+    from learning.telemetry import emit
+    emit("query_embedding", status="running")
     vector=embed([question])[0]
+    emit("query_embedding", status="ok", dimensions=len(vector))
     # Enter managed resource/context; cleanup occurs on exit, including exceptions.
     with db() as conn:
         # WHERE tenant = %s is critical: prevent cross-tenant retrieval.
         # Store conn.execute('SELECT id,document_id,page,content FROM chunks\n            WHERE tenant=%s ORDER BY embedding <=> %s LIMIT 20', (tenant, vector)).fetchall() in vector_rows.
+        emit('vector_search', status='running')
         vector_rows=conn.execute('''SELECT id,document_id,page,content FROM chunks
             WHERE tenant=%s ORDER BY embedding <=> %s::vector LIMIT 20''',(tenant,str(vector))).fetchall()
         # Store conn.execute("SELECT id,document_id,page,content FROM chunks\n            WHERE tenant=%s AND search_tsv @@ plainto_tsquery('english',%s)\n            ORDER BY ts_rank_cd(search_ts in lexical_rows.
+        emit('vector_search', status='ok', count=len(vector_rows))
+        emit('keyword_search', status='running')
         lexical_rows=conn.execute('''SELECT id,document_id,page,content FROM chunks
             WHERE tenant=%s AND search_tsv @@ plainto_tsquery('english',%s)
             ORDER BY ts_rank_cd(search_tsv,plainto_tsquery('english',%s)) DESC LIMIT 20''',
             (tenant,question,question)).fetchall()
     # Store reciprocal_rank_fusion(vector_rows, lexical_rows) in candidates.
+    emit("keyword_search", status="ok", count=len(lexical_rows))
+    emit("rrf_fusion", status="running")
     candidates=reciprocal_rank_fusion(vector_rows,lexical_rows)
+    emit("rrf_fusion", status="ok", count=len(candidates))
     from learning.telemetry import emit
     emit("retrieval_ranks", vector=[r[0] for r in vector_rows],
          keyword=[r[0] for r in lexical_rows], fused=[r[0] for r in candidates])
@@ -352,9 +361,11 @@ def hybrid_search(question: str,tenant: str,top_k=5):
     # Check _reranker is None; execute this branch only if true.
     if _reranker is None: _reranker=CrossEncoder(C.rerank_model)
     # Store _reranker.predict([(question, row[3]) for row in candidates]) in relevance.
+    emit("reranking", status="running")
     relevance=_reranker.predict([(question,row[3]) for row in candidates])
     # Store sorted(zip(candidates, relevance), key=lambda x: float(x[1]), reverse=True) in ranked.
     ranked=sorted(zip(candidates,relevance),key=lambda x:float(x[1]),reverse=True)
+    emit("reranking", status="ok", count=min(top_k,len(ranked)))
     # Return [{'id': r[0], 'document_id': r[1], 'page': r[2], 'content': r[3], 'rerank_score': float(score)} for r, score in ranked[:top_k]] to the caller.
     return [{'id':r[0],'document_id':r[1],'page':r[2],'content':r[3],
              'rerank_score':float(score)} for r,score in ranked[:top_k]]
@@ -719,7 +730,10 @@ def run_unified_graph(question: str, tenant: str, workflow_id: str):
                 # Store '\n'.join((d['content'] for d in state['documents']))[:3000] in evidence.
                 evidence='\n'.join(d['content'] for d in state['documents'])[:3000]
                 # Store llm_judge(state['question'], evidence, state['result']['answer']) in quality['judge'].
+                from learning.telemetry import emit
+                emit("llm_judge", status="running")
                 quality['judge']=llm_judge(state['question'],evidence,state['result']['answer'])
+                emit('llm_judge', status='ok')
             # Return {'quality': quality} to the caller.
             return {'quality':quality}
     # Store StateGraph(State) in graph.

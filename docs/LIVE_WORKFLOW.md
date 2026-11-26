@@ -1,0 +1,4 @@
+# Live workflow inspector
+Studio polls request-specific in-memory telemetry every 500 ms while requests run. Graph node start/end/error, query embedding, vector and keyword search, RRF, reranking, optional judge, model usage and existing skill/MCP events appear as emitted. Compare mode retains separate request panels. No fabricated steps, prompt text or chunk IDs in the live feed. The existing final API result and persisted telemetry remain available.
+
+Local single-process demo only: random UUID correlation is not authentication, traces are bounded to 64 runs and 256 events each, restart clears them. No token streaming or cancellation. Some operations emit only request start/end; nested thread context propagation and live browser behavior require runtime validation. Run pytest tests/test_live_trace.py -v and verify HR skill with uploaded PDF, retrieval, no evidence, judge enabled/disabled, errors and compare mode. Tests added but not executed here.
