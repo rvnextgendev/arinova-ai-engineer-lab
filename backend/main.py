@@ -254,3 +254,13 @@ def route_skill(q: Question):
 @app.post("/skills/{skill_id}/evaluate")
 def skill_evaluation(skill_id: str, q: Judge):
     return run(evaluate_skill,skill_id,q.question,q.evidence,q.answer,q.tenant,q.actor)
+
+from backend.deep_agent_engine import enabled, execute_deep
+
+@app.get("/deep-agent/status")
+def deep_agent_status():
+    return {"enabled": enabled()}
+
+@app.post("/deep-agent/{skill_id}/execute")
+def deep_agent_execute(skill_id: str, q: Question):
+    return run(execute_deep, q.question, q.tenant, q.actor, skill_id)
