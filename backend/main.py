@@ -243,3 +243,14 @@ def skills():
 @app.post("/skills/{skill_id}/execute")
 def execute_skill(skill_id: str, q: Question):
     return run(execute, skill_id, q.question, q.tenant, q.actor, q.request_id)
+
+from backend.skill_engine import route, evaluate_skill
+
+@app.post("/skills/route")
+def route_skill(q: Question):
+    run(lab.authorize,q.actor,"ask",q.tenant)
+    return {"skill":run(route,q.question)}
+
+@app.post("/skills/{skill_id}/evaluate")
+def skill_evaluation(skill_id: str, q: Judge):
+    return run(evaluate_skill,skill_id,q.question,q.evidence,q.answer,q.tenant,q.actor)

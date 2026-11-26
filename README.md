@@ -53,3 +53,5 @@ See [Docker + Ollama setup and VS Code debugging](LOCAL_DEBUG.md). Run `setup.ps
 ## HTML Skill Studio
 
 Open http://localhost:8000/studio after `docker compose restart api`. Four registered skills, real API calls, PDF upload, retrieval inspection, circuit status and telemetry. See [presentation notes](docs/SKILL_ARCHITECTURE.md). Local demo only; tests added but runtime validation pending.
+
+See [Skill Studio v2](docs/SKILL_V2.md) for automatic routing, extraction limitations, evaluation and presentation notes.

@@ -1,9 +1,6 @@
 ---
 name: automotive-dtc
-description: Retrieve DTC evidence for human review. Preserve page references. Do not claim complete section extraction or combine engine variants.
+description: Extract structured diagnostic evidence from exact-code matches.
 ---
-
 # Instructions
-Retrieve DTC evidence for human review. Preserve page references. Do not claim complete section extraction or combine engine variants.
-
-Execution is enforced by the registered Python handler. This file documents the contract; it is not dynamically injected into prompts in this version.
+Extract description, causes, tests and repairs only from supplied evidence. Never invent missing information. Do not merge different documents or engines. Preserve source evidence. Always require human review until full section boundaries and vehicle metadata are verified.
