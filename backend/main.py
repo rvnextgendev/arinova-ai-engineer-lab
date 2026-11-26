@@ -167,7 +167,7 @@ async def monitor(request: Request, call_next):
         elapsed = time.perf_counter()-start
         requests_total.labels(route,str(status)).inc()
         latency.labels(route).observe(elapsed)
-        if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate","/skills/{skill_id}/execute","/deep-agent/{skill_id}/execute","/skills/{skill_id}/evaluate","/mcp/tools","/mcp/call"):
+        if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate","/skills/{skill_id}/execute","/deep-agent/{skill_id}/execute","/skills/{skill_id}/evaluate","/mcp/tools","/mcp/call","/mcp/agent/{engine}"):
             with history_lock:
                 record = {"trace_id":trace,"route":route,"status":status,
                           "milliseconds":round(elapsed*1000,2),"events":events}
@@ -275,3 +275,13 @@ def deep_agent_status():
 @app.post("/deep-agent/{skill_id}/execute")
 def deep_agent_execute(skill_id: str, q: Question):
     return run(execute_deep, q.question, q.tenant, q.actor, skill_id)
+
+
+from backend.mcp_agent_engine import execute_mcp_agent
+
+class MCPAgentQuestion(Question):
+    approved: bool = False
+
+@app.post("/mcp/agent/{engine}")
+def mcp_agent(engine: str, q: MCPAgentQuestion):
+    return run(execute_mcp_agent, engine, q.question, q.tenant, q.actor, q.approved)
