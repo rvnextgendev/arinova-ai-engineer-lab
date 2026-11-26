@@ -167,7 +167,7 @@ async def monitor(request: Request, call_next):
         elapsed = time.perf_counter()-start
         requests_total.labels(route,str(status)).inc()
         latency.labels(route).observe(elapsed)
-        if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate","/skills/{skill_id}/execute","/deep-agent/{skill_id}/execute","/skills/{skill_id}/evaluate"):
+        if route in ("/ask","/retrieve","/ingest","/judge","/embedding","/evaluate","/skills/{skill_id}/execute","/deep-agent/{skill_id}/execute","/skills/{skill_id}/evaluate","/mcp/tools","/mcp/call"):
             with history_lock:
                 record = {"trace_id":trace,"route":route,"status":status,
                           "milliseconds":round(elapsed*1000,2),"events":events}
@@ -222,7 +222,18 @@ def circuit():
 
 @app.get("/mcp/tools")
 def mcp_tools():
-    return run(lab.mcp_list_tools)
+    return run(mcp_demo_client.discover)
+
+from backend import mcp_demo_client
+
+class MCPCall(BaseModel):
+    name: str
+    arguments: dict = Field(default_factory=dict)
+    approved: bool = False
+
+@app.post("/mcp/call")
+def mcp_call(q: MCPCall):
+    return run(mcp_demo_client.call, q.name, q.arguments, q.approved)
 
 @app.get("/training/candidates")
 def candidates(tenant: str="acme"):
