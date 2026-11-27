@@ -34,7 +34,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("Invalid request length")
             m=json.loads(self.rfile.read(n))
             if self.path=="/generate":
-                if self.headers.get("Origin") not in ("http://127.0.0.1:8765", "http://localhost:8765"):
+                if self.headers.get("Origin") not in ("http://127.0.0.1:8766", "http://localhost:8766"):
                     return self.data(403,{"error":"Local portal origin required"})
                 dest=generate(m,ROOT.parent/"generated")
                 return self.data(201,{"project":dest.name,"path":str(dest),"steps":["Configuration validated","Project directory created","Core runtime copied","Business plugin and application generated","Tests and documentation generated"],"files":[str(p.relative_to(dest)) for p in sorted(dest.rglob("*")) if p.is_file()]})
@@ -46,10 +46,10 @@ class Handler(BaseHTTPRequestHandler):
         except OSError as exc:
             self.data(500,{"error":str(exc)})
 if __name__=="__main__":
-    with HTTPServer(("127.0.0.1",8765),Handler) as server:
-        print("AriNova Studio: http://127.0.0.1:8765",flush=True)
+    with HTTPServer(("127.0.0.1",8766),Handler) as server:
+        print("AriNova Factory v2 — generation API enabled. Studio: http://127.0.0.1:8766",flush=True)
         if "--no-browser" not in sys.argv:
-            webbrowser.open("http://127.0.0.1:8765")
+            webbrowser.open("http://127.0.0.1:8766")
         try:
             server.serve_forever()
         except KeyboardInterrupt:
