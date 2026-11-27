@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Core SDK",
+    "status": "Offline executable",
+    "scope": "Fixture retrieval, evaluation and injected failure events"
+  },
+  {
+    "name": "Software Factory",
+    "status": "Local generator",
+    "scope": "Manifest validation and generated CLI"
+  },
+  {
+    "name": "Model Gateway",
+    "status": "Planned",
+    "scope": "LiteLLM and provider fallback"
+  },
+  {
+    "name": "Prompt Registry",
+    "status": "Planned",
+    "scope": "Versioned prompts and rollback"
+  },
+  {
+    "name": "Agent & Skill Registry",
+    "status": "Planned",
+    "scope": "Versioned agent and skill contracts"
+  },
+  {
+    "name": "MCP Gateway",
+    "status": "Planned",
+    "scope": "Authorized tool discovery"
+  },
+  {
+    "name": "Spec-driven development",
+    "status": "Planned",
+    "scope": "Requirements, acceptance criteria and approval"
+  },
+  {
+    "name": "Coding sandbox",
+    "status": "Planned",
+    "scope": "Isolated execution and resource limits"
+  },
+  {
+    "name": "LLMOps & FinOps",
+    "status": "Planned",
+    "scope": "Langfuse, token accounting and benchmarking"
+  },
+  {
+    "name": "Security",
+    "status": "Planned",
+    "scope": "OIDC, tenant isolation, Promptfoo and policy gates"
+  },
+  {
+    "name": "Advanced AI",
+    "status": "Planned",
+    "scope": "GraphRAG, A2A, multimodal, memory"
+  },
+  {
+    "name": "Deployment",
+    "status": "Planned",
+    "scope": "CI/CD, infrastructure as code and recovery"
+  }
+]
