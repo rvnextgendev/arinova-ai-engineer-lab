@@ -1,0 +1,58 @@
+"""Local, opt-in factory CLI. No external dependencies for generation."""
+import argparse
+import json
+import re
+import shutil
+from pathlib import Path
+
+CAPABILITIES = {
+    "rag": (), "hybrid_search": ("rag",), "langgraph": (),
+    "deep_agents": (), "mcp": (), "skills": (), "evaluation": (),
+    "guardrails": (), "retry": (), "circuit_breaker": (),
+    "dlq": ("retry",), "checkpointing": (), "human_approval": (),
+    "observability": (), "rbac": (), "ci_cd": (),
+}
+# Registry describes requested features, not verified runtime availability.
+def validate(m):
+    if not isinstance(m, dict):
+        raise ValueError("Expected object")
+    for key, pattern in [("project", r"[a-z][a-z0-9-]{0,63}"), ("business_plugin", r"[a-z][a-z0-9_]{0,63}")]:
+        if not isinstance(m.get(key), str) or not re.fullmatch(pattern, m[key]):
+            raise ValueError("Invalid " + key)
+    if m.get("model") not in ("ollama", "groq", "openai"):
+        raise ValueError("Unknown model provider")
+    caps = m.get("capabilities")
+    if not isinstance(caps, dict) or any(k not in CAPABILITIES or type(v) is not bool for k,v in caps.items()):
+        raise ValueError("Invalid capabilities")
+    for k, deps in CAPABILITIES.items():
+        if caps.get(k) and any(not caps.get(d) for d in deps):
+            raise ValueError(k + " requires " + ", ".join(deps))
+    return {k:m[k] for k in ("project","business_plugin","model","capabilities")}
+
+def generate(manifest, output):
+    m = validate(manifest)
+    root = Path(output).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    dest = root / m["project"]
+    dest.mkdir(exist_ok=False)
+    try:
+        (dest / "manifest.json").write_text(json.dumps(m, indent=2), encoding="utf-8")
+        (dest / "business.py").write_text('def process(question: str) -> dict:\n    """Replace with customer-specific logic."""\n    return {"question": question, "status": "pilot", "result": question.strip()}\n', encoding="utf-8")
+        (dest / "app.py").write_text('import json\nfrom pathlib import Path\nfrom business import process\n\ndef run(question):\n    if not question.strip():\n        raise ValueError("Empty question")\n    return process(question)\n\nif __name__ == "__main__":\n    print(json.dumps(run(input("Question: "))))\n', encoding="utf-8")
+        (dest / "test_app.py").write_text('import unittest\nfrom app import run\nclass PilotTests(unittest.TestCase):\n    def test_process(self):\n        self.assertEqual(run("hello")["result"], "hello")\n    def test_empty(self):\n        with self.assertRaises(ValueError):\n            run(" ")\n', encoding="utf-8")
+        (dest / "README.md").write_text("# Generated pilot\nRun python app.py and python -m unittest. Selected AI capabilities are declarations only; adapters are not connected. Replace business.py with domain logic. No production deployment.\n", encoding="utf-8")
+        if m["capabilities"].get("ci_cd"):
+            p = dest / ".github/workflows"
+            p.mkdir(parents=True)
+            (p / "test.yml").write_text("name: Pilot tests\non: [push, pull_request]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-python@v5\n        with:\n          python-version: '3.11'\n      - run: python -m unittest\n", encoding="utf-8")
+    except Exception:
+        shutil.rmtree(dest)
+        raise
+    return dest
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser()
+    p.add_argument("manifest", type=Path)
+    p.add_argument("--output", type=Path, default=Path("generated"))
+    args = p.parse_args()
+    print(generate(json.loads(args.manifest.read_text(encoding="utf-8")), args.output))
