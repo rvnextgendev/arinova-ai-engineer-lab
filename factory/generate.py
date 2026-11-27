@@ -37,10 +37,11 @@ def generate(manifest, output):
     dest.mkdir(exist_ok=False)
     try:
         (dest / "manifest.json").write_text(json.dumps(m, indent=2), encoding="utf-8")
-        (dest / "business.py").write_text('def process(question: str) -> dict:\n    """Replace with customer-specific logic."""\n    return {"question": question, "status": "pilot", "result": question.strip()}\n', encoding="utf-8")
-        (dest / "app.py").write_text('import json\nfrom pathlib import Path\nfrom business import process\n\ndef run(question):\n    if not question.strip():\n        raise ValueError("Empty question")\n    return process(question)\n\nif __name__ == "__main__":\n    print(json.dumps(run(input("Question: "))))\n', encoding="utf-8")
-        (dest / "test_app.py").write_text('import unittest\nfrom app import run\nclass PilotTests(unittest.TestCase):\n    def test_process(self):\n        self.assertEqual(run("hello")["result"], "hello")\n    def test_empty(self):\n        with self.assertRaises(ValueError):\n            run(" ")\n', encoding="utf-8")
-        (dest / "README.md").write_text("# Generated pilot\nRun python app.py and python -m unittest. Selected AI capabilities are declarations only; adapters are not connected. Replace business.py with domain logic. No production deployment.\n", encoding="utf-8")
+        shutil.copyfile(Path(__file__).with_name("core_preview.py"), dest / "arinova_core.py")
+        (dest / "business.py").write_text('from arinova_core import execute\ndef process(question):\n    return execute(question)\n', encoding="utf-8")
+        (dest / "app.py").write_text('import json\nfrom business import process\ndef run(question):\n    return process(question)\nif __name__ == "__main__":\n    print(json.dumps(run(input("Question: ")), indent=2))\n', encoding="utf-8")
+        (dest / "test_app.py").write_text('import unittest\nfrom app import run\nclass PilotTests(unittest.TestCase):\n    def test_process(self):\n        self.assertEqual(run("P0302")["status"], "completed")\n    def test_empty(self):\n        with self.assertRaises(ValueError):\n            run(" ")\n', encoding="utf-8")
+        (dest / "README.md").write_text("Run python app.py and python -m unittest. Offline fixture-based Core runtime included. Manifest AI selections are requirements, not activated external integrations. No production deployment.\n", encoding="utf-8")
         if m["capabilities"].get("ci_cd"):
             p = dest / ".github/workflows"
             p.mkdir(parents=True)
