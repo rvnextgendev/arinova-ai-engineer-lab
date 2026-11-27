@@ -1,0 +1,13 @@
+{
+  "project": "motor-dtc-assistant",
+  "business_plugin": "motor_dtc_processor",
+  "model": "ollama",
+  "capabilities": {
+    "rag": true,
+    "hybrid_search": true,
+    "langgraph": true,
+    "retry": true,
+    "dlq": true,
+    "ci_cd": true
+  }
+}
