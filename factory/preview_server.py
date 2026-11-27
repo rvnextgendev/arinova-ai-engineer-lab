@@ -34,15 +34,17 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("Invalid request length")
             m=json.loads(self.rfile.read(n))
             if self.path=="/generate":
-                if self.headers.get("Origin") != "http://127.0.0.1:8765":
+                if self.headers.get("Origin") not in ("http://127.0.0.1:8765", "http://localhost:8765"):
                     return self.data(403,{"error":"Local portal origin required"})
                 dest=generate(m,ROOT.parent/"generated")
-                return self.data(201,{"project":dest.name,"path":str(dest)})
+                return self.data(201,{"project":dest.name,"path":str(dest),"steps":["Configuration validated","Project directory created","Core runtime copied","Business plugin and application generated","Tests and documentation generated"],"files":[str(p.relative_to(dest)) for p in sorted(dest.rglob("*")) if p.is_file()]})
             self.data(200,execute(m["question"],m.get("scenario","normal")))
         except FileExistsError:
-            self.data(409,{"error":"Project already exists"})
-        except (ValueError,KeyError,TypeError,AttributeError):
-            self.data(400,{"error":"Invalid request"})
+            self.data(409,{"error":"Project already exists. Choose a new project name; existing files are preserved."})
+        except (ValueError,KeyError,TypeError,AttributeError) as exc:
+            self.data(400,{"error":str(exc)})
+        except OSError as exc:
+            self.data(500,{"error":str(exc)})
 if __name__=="__main__":
     with HTTPServer(("127.0.0.1",8765),Handler) as server:
         print("AriNova Studio: http://127.0.0.1:8765",flush=True)
