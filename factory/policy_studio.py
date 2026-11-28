@@ -230,7 +230,7 @@ def central_pdf_project(id):
     from central_projects import registry
     try:p=registry().get(id)
     except ValueError as e:raise HTTPException(404,str(e))
-    if p["template"] not in ("hr","it","azure") or not p["artifact"]:raise HTTPException(400,"Generate policy project first")
+    if p["template"] not in ("hr","it","azure","custom") or not p["artifact"]:raise HTTPException(400,"Generate policy project first")
     return Path(p["artifact"]), "p-"+hashlib.sha256(id.encode()).hexdigest()[:38]
 @app.post("/factory/pdf/upload")
 def central_pdf_upload(id:str=Form(...),pdf:UploadFile=File(...)):
