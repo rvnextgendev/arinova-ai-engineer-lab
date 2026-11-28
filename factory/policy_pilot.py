@@ -23,6 +23,14 @@ def build(domain, output):
     try:
         shutil.copyfile(root/"policy_core.py",dest/"arinova_core.py")
         (dest/"policies.json").write_text(json.dumps(POLICIES[domain],indent=2),encoding="utf-8")
+        web=(root/"web_template.py").read_text(encoding="utf-8")
+        title=domain.upper()+" Policy Assistant"
+        web=web.replace("AriNova Customer Studio",title).replace("Generated application · Local development","Fictional policy demo · Offline retrieval")
+        web=web.replace("<option>ollama</option><option>groq</option><option>openai</option>","").replace("Offline mode uses sample DTC evidence, not an LLM.","Offline mode retrieves fictional policy excerpts, not an LLM.")
+        samples=["What is annual leave?","What is remote work policy?","What is password length?"] if domain=="hr" else ["Do I need VPN?","What is password length?","Approve software installation"]
+        for old,new in zip(["Explain P0302","Explain P0456","Explain P9999"],samples): web=web.replace(old,new)
+        (dest/"web_app.py").write_text(web,encoding="utf-8")
+        (dest/"agent-task.md").write_text("Inspect existing code and reuse-report.json. Preserve the shared retrieval core. "+("Add IT-005: suspected security incidents must be reported to Technology Support. Add keywords and tests for incident retrieval and exception review." if domain=="it" else "Add a fictional HR training policy and tests.")+" Run all tests. Do not deploy or modify the original project. Report changes.\n",encoding="utf-8")
         # Disable generic live generation until grounded retrieval is integrated.
         (dest/"runtime.py").write_text('from arinova_core import execute\ndef run(question, provider="offline", model="", context=""):\n    if provider != "offline":\n        raise ValueError("Policy pilot is offline only")\n    return execute(question)\n',encoding="utf-8")
         sample="annual leave" if domain=="hr" else "password length"
@@ -30,7 +38,7 @@ def build(domain, output):
         unknown="password length" if domain=="hr" else "annual leave"
         (dest/"test_app.py").write_text(f'import unittest\nfrom app import run\nclass PolicyTests(unittest.TestCase):\n    def test_known(self):\n        self.assertEqual(run({sample!r})["citations"], [{code!r}])\n    def test_other_domain(self):\n        self.assertEqual(run({unknown!r})["status"], "needs_review")\n    def test_empty(self):\n        with self.assertRaises(ValueError): run(" ")\n    def test_approval(self):\n        self.assertEqual(run({"approve "+sample!r})["status"], "needs_review")\n',encoding="utf-8")
         (dest/"README.md").write_text("Fictional policy pilot. Run python -m unittest -v, python app.py or python web_app.py. Select offline mode. Keyword retrieval only; no PDF ingestion, embeddings, authentication or real approval. Do not use real employee data.\n",encoding="utf-8")
-        (dest/"reuse-report.json").write_text(json.dumps({"reused":["factory/generate.py","factory/web_template.py","factory/policy_core.py"],"customized":["policies.json","test_app.py"],"disabled":["live model generation"],"reference":"shared policy core"},indent=2),encoding="utf-8")
+        (dest/"reuse-report.json").write_text(json.dumps({"reused":["factory/generate.py","factory/web_template.py","factory/policy_core.py"],"customized":["policies.json","test_app.py","web_app.py","agent-task.md"],"disabled":["live model generation"],"reference":"shared policy core"},indent=2),encoding="utf-8")
     except Exception:
         shutil.rmtree(dest)
         raise
