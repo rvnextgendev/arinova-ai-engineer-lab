@@ -53,3 +53,17 @@ def deliver(job):
     git("add","--",*current.keys())
     git("commit","-m","Approved policy assistant delivery")
     return {"branch":git("branch","--show-current"),"commit":git("rev-parse","HEAD"),"repository":str(target),"pushed":False}
+
+def execute_job(job):
+    import os
+    w,p,m=load(job)
+    m["approved"]=None
+    p.write_text(json.dumps(m),encoding="utf-8")
+    name="arinova-agent-"+job
+    cmd=["docker","run","--rm","--name",name,"--cap-drop","ALL","--security-opt","no-new-privileges","--memory","2g","--pids-limit","128","--mount",f"type=bind,source={w.resolve()},target=/workspace","-e","ARINOVA_OPENHANDS_MODEL="+os.getenv("ARINOVA_OPENHANDS_MODEL","ollama_chat/qwen2.5-coder:7b"),"-e","ARINOVA_OPENHANDS_URL="+os.getenv("ARINOVA_OPENHANDS_URL","http://host.docker.internal:11434"),"arinova-openhands-worker"]
+    try:
+        result=subprocess.run(cmd,capture_output=True,text=True,timeout=900)
+        return {"exit_code":result.returncode,"log":(result.stdout+result.stderr)[-24000:],"review":review(job)}
+    except subprocess.TimeoutExpired:
+        subprocess.run(["docker","rm","-f",name],capture_output=True,timeout=30)
+        raise ValueError("OpenHands task timed out")
