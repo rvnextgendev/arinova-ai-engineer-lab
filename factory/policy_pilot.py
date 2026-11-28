@@ -27,6 +27,7 @@ def build(domain, output):
         title=domain.upper()+" Policy Assistant"
         web=web.replace("AriNova Customer Studio",title).replace("Generated application · Local development","Fictional policy demo · Local Ollama")
         web=web.replace("<option>offline</option><option>ollama</option><option>groq</option><option>openai</option>","<option>ollama</option><option>offline</option>").replace("Offline mode uses sample DTC evidence, not an LLM.","Ollama runs locally. Offline mode is a deterministic test fallback.")
+        web=web.replace('id="live" hidden','id="live"').replace("Optional context","Unused context (policy evidence is retrieved automatically)").replace("Cloud providers receive your question and context. API keys are read from environment variables.","Only local Ollama is supported; leave model blank for the configured default.")
         samples=["What is annual leave?","What is remote work policy?","What is password length?"] if domain=="hr" else ["Do I need VPN?","What is password length?","Approve software installation"]
         for old,new in zip(["Explain P0302","Explain P0456","Explain P9999"],samples): web=web.replace(old,new)
         (dest/"web_app.py").write_text(web,encoding="utf-8")
