@@ -19,6 +19,8 @@ import psycopg
 ROOT=Path(__file__).resolve().parent.parent
 OUTPUT=ROOT/"generated"
 app=FastAPI()
+from enterprise_auth import middleware,require,actor,allowed
+app.middleware('http')(middleware)
 os.environ["ARINOVA_POLICY_PDF_ONLY"]="1"
 def domain_check(domain):
     if not re.fullmatch(r"[a-z][a-z0-9]{0,39}",domain): raise HTTPException(400,"Invalid domain")
@@ -154,14 +156,16 @@ def central_catalog():
 @app.get("/factory/projects")
 def central_list():
     from central_projects import registry
-    return registry().list()
+    return [p for p in registry().list() if allowed(actor(),p['id'],('developer','quality','approver','release','viewer'))]
 @app.get("/factory/projects/{id}")
 def central_get(id:str):
+    require(id,('developer','quality','approver','release','viewer'))
     from central_projects import registry
     try:return registry().get(id)
     except ValueError as e:raise HTTPException(404,str(e))
 @app.post("/factory/action")
 def central_action(q:CentralRequest):
+    require(q.id,() if q.action=='create' else ('developer',))
     from central_projects import registry
     reg=registry()
     try:
@@ -182,14 +186,17 @@ def studios():
     return [{"id":s.id,"allowed":s.allowed} for s in STUDIOS.values()]
 @app.get("/factory/evidence/{id}")
 def studio_evidence(id:str):
+    require(id,('developer','quality','approver','release','viewer'))
     from central_projects import registry
     from central_studios import evidence
     return evidence(registry(),id)
 @app.post("/factory/studio")
 def studio_action(q:StudioRequest):
+    roles={'develop':('developer',),'execute':('developer',),'quality':('quality',),'approve':('approver',),'deliver':('release',)}
+    require(q.id,roles.get(q.action,()))
     from central_projects import registry
     from central_studios import run
-    try:return run(registry(),q.id,q.action,q.requirement,q.expected)
+    try:return run(registry(),q.id,q.action,q.requirement,q.expected,reviewer=actor()['sub'])
     except (ValueError,OSError) as e:raise HTTPException(400,str(e))
 class DemoRequest(BaseModel):
     action:str
@@ -203,6 +210,11 @@ def demo_home():
     return Path(__file__).with_name("central_policy_demo.html").read_text(encoding="utf-8")
 @app.post("/factory/demo")
 def demo_action(q:DemoRequest):
+    if q.action=='setup':require()
+    elif q.action=='query':require(q.id,('developer','viewer','quality'))
+    elif q.action=='compare':
+        require(q.hr,('developer','viewer','quality'));require(q.it,('developer','viewer','quality'))
+    else:raise HTTPException(400,'Unknown action')
     from central_projects import registry
     import central_policy_demo as d
     reg=registry()
@@ -213,6 +225,7 @@ def demo_action(q:DemoRequest):
         raise ValueError("Unknown demo action")
     except (ValueError,OSError) as e:raise HTTPException(400,str(e))
 def central_pdf_project(id):
+    require(id,('developer','viewer','quality','approver','release'))
     import hashlib
     from central_projects import registry
     try:p=registry().get(id)
@@ -221,6 +234,7 @@ def central_pdf_project(id):
     return Path(p["artifact"]), "p-"+hashlib.sha256(id.encode()).hexdigest()[:38]
 @app.post("/factory/pdf/upload")
 def central_pdf_upload(id:str=Form(...),pdf:UploadFile=File(...)):
+    require(id,('developer',))
     _,namespace=central_pdf_project(id)
     name=Path(pdf.filename or "").name
     if not re.fullmatch(r"[A-Za-z0-9_. -]{1,150}\.pdf",name,re.I):raise HTTPException(400,"PDF filename required")
@@ -283,6 +297,19 @@ async def central_pdf_execute(q:CentralPDFQuery):
 @app.get("/factory/pdf",response_class=HTMLResponse)
 def central_pdf_home():
     return Path(__file__).with_name("central_pdf.html").read_text(encoding="utf-8")
+@app.get("/factory/me")
+def me():return actor()
+@app.get("/factory/release/{id}")
+def release_download(id:str):
+    require(id,("release","approver"))
+    from central_projects import registry
+    from central_studios import evidence
+    from fastapi.responses import FileResponse
+    reg=registry()
+    if reg.get(id)["stage"]!="delivered":raise HTTPException(409,"Not delivered")
+    path=Path(evidence(reg,id)["deliver"]["package"])
+    if path.resolve().parent!=(ROOT/"factory-state"/"releases").resolve():raise HTTPException(400,"Invalid package")
+    return FileResponse(path,filename=path.name)
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host="127.0.0.1",port=8790)
