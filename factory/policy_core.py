@@ -12,6 +12,10 @@ def execute(question, scenario="normal"):
     if scenario != "normal":
         raise ValueError("Policy pilot supports normal scenario only")
     docs=json.loads(Path(__file__).with_name("policies.json").read_text(encoding="utf-8"))
+    return evaluate(question,docs)
+
+def evaluate(question,docs):
+    if not isinstance(question,str) or not question.strip() or len(question)>2000:raise ValueError("Question must contain 1-2000 characters")
     events=[{"stage":"input_validation","status":"ok"}]
     q=tokens(question)
     ranked=sorted(((len(q & tokens(d["keywords"])),d["id"],d) for d in docs),key=lambda x:(-x[0],x[1]))
