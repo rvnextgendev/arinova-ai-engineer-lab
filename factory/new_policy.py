@@ -3,7 +3,7 @@ import argparse
 import json
 import re
 from pathlib import Path
-from policy_pilot import build, POLICIES
+from policy_pilot import POLICIES
 
 def create(domain, output):
     if not re.fullmatch(r"[a-z][a-z0-9]{0,39}",domain):
