@@ -1,0 +1,5 @@
+FROM python:3.12-slim
+RUN pip install --no-cache-dir openhands-sdk openhands-tools
+COPY openhands_worker.py /worker.py
+WORKDIR /workspace
+ENTRYPOINT ["python","-u","/worker.py"]
