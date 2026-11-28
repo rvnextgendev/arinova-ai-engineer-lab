@@ -124,6 +124,19 @@ def delivery(q:DeliveryRequest):
         if q.action=="deliver": return d.deliver(q.job)
         raise ValueError("Invalid action")
     except (ValueError,OSError) as exc: raise HTTPException(400,str(exc))
+class LabRequest(BaseModel):
+    module:str
+    text:str=""
+@app.get("/architect",response_class=HTMLResponse)
+def architect_home():
+    return Path(__file__).with_name("architect_studio.html").read_text(encoding="utf-8")
+@app.post("/architect/run")
+def architect_run(q:LabRequest):
+    if os.getenv("ARINOVA_ENABLE_ARCHITECT_LABS")!="1": raise HTTPException(403,"Set ARINOVA_ENABLE_ARCHITECT_LABS=1 and restart")
+    from architect_labs import execute
+    try:return execute(q.module,q.text)
+    except ValueError as e:raise HTTPException(400,str(e))
+    except Exception as e:raise HTTPException(503,type(e).__name__+"; check local dependencies")
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host="127.0.0.1",port=8790)
