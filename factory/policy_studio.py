@@ -212,6 +212,77 @@ def demo_action(q:DemoRequest):
         if q.action=="compare":return d.compare(reg,q.hr,q.it)
         raise ValueError("Unknown demo action")
     except (ValueError,OSError) as e:raise HTTPException(400,str(e))
+def central_pdf_project(id):
+    import hashlib
+    from central_projects import registry
+    try:p=registry().get(id)
+    except ValueError as e:raise HTTPException(404,str(e))
+    if p["template"] not in ("hr","it","azure") or not p["artifact"]:raise HTTPException(400,"Generate policy project first")
+    return Path(p["artifact"]), "p-"+hashlib.sha256(id.encode()).hexdigest()[:38]
+@app.post("/factory/pdf/upload")
+def central_pdf_upload(id:str=Form(...),pdf:UploadFile=File(...)):
+    _,namespace=central_pdf_project(id)
+    name=Path(pdf.filename or "").name
+    if not re.fullmatch(r"[A-Za-z0-9_. -]{1,150}\.pdf",name,re.I):raise HTTPException(400,"PDF filename required")
+    with tempfile.TemporaryDirectory() as tmp:
+        p=Path(tmp)/name
+        data=pdf.file.read(20*1024*1024+1)
+        if len(data)>20*1024*1024 or not data.startswith(b"%PDF-"):raise HTTPException(400,"Invalid PDF")
+        p.write_bytes(data)
+        try:
+            with psycopg.connect(os.environ["ARINOVA_POLICY_DSN"],autocommit=True) as conn:
+                initialize(conn)
+                count=ingest(conn,namespace,p)
+        except Exception as e:raise HTTPException(503,type(e).__name__+"; check PDF, database and Ollama")
+    return {"project":id,"source":name,"chunks":count}
+@app.get("/factory/pdf/documents/{id}")
+def central_pdf_documents(id:str):
+    _,namespace=central_pdf_project(id)
+    try:
+        with psycopg.connect(os.environ["ARINOVA_POLICY_DSN"]) as conn:
+            initialize(conn)
+            rows=conn.execute("SELECT source,count(*),count(DISTINCT page) FROM factory_policy_chunks WHERE domain=%s GROUP BY source ORDER BY source",(namespace,)).fetchall()
+        return [{"source":r[0],"chunks":r[1],"pages":r[2]} for r in rows]
+    except Exception as e:raise HTTPException(503,type(e).__name__+"; check database")
+class CentralPDFQuery(BaseModel):
+    id:str
+    engine:str
+    question:str
+@app.post("/factory/pdf/execute")
+async def central_pdf_execute(q:CentralPDFQuery):
+    p,namespace=central_pdf_project(q.id)
+    if q.engine not in ("rag","langgraph","deep","mcp","compare") or not 1<=len(q.question.strip())<=2000:raise HTTPException(400,"Invalid query")
+    async def stream():
+        queue=asyncio.Queue()
+        def line(stage,**data):return json.dumps({"stage":stage,**data},default=str)+"\n"
+        async def emit(stage,data):await queue.put(line(stage,**data))
+        async def agent(project,question,engine,emit):return await run(project,question,engine,emit,namespace=namespace)
+        async def work():
+            with psycopg.connect(os.environ["ARINOVA_POLICY_DSN"]) as conn:
+                exists=conn.execute("SELECT 1 FROM factory_policy_chunks WHERE domain=%s LIMIT 1",(namespace,)).fetchone()
+            if not exists:return {"answer":"Upload a PDF first","sources":[]}
+            if q.engine=="compare":
+                from policy_compare import compare
+                return await compare(p,namespace,q.question,rag,agent,emit)
+            if q.engine=="rag":return await asyncio.to_thread(rag,namespace,q.question)
+            messages=await agent(p,q.question,q.engine,emit)
+            return {"answer":next((m["content"] for m in reversed(messages) if m["type"]=="ai"),""),"messages":messages,"citation_status":"Agent citations not independently verified"}
+        yield line("validated",project=q.id,engine=q.engine)
+        yield line("running",message="Project-scoped PDF retrieval and local model execution")
+        start=time.monotonic()
+        task=asyncio.create_task(work())
+        try:
+            while not task.done() or not queue.empty():
+                try:yield await asyncio.wait_for(queue.get(),timeout=.5)
+                except asyncio.TimeoutError:pass
+            yield line("completed",result=await task,seconds=round(time.monotonic()-start,2))
+        except Exception as e:yield line("failed",error=type(e).__name__,message="Check database, model tool support and local dependencies")
+        finally:
+            if not task.done():task.cancel()
+    return StreamingResponse(stream(),media_type="application/x-ndjson")
+@app.get("/factory/pdf",response_class=HTMLResponse)
+def central_pdf_home():
+    return Path(__file__).with_name("central_pdf.html").read_text(encoding="utf-8")
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host="127.0.0.1",port=8790)
