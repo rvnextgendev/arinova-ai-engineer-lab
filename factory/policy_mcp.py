@@ -16,10 +16,10 @@ def search_documents(question:str)->str:
     """Search indexed PDF excerpts for the selected policy department."""
     import psycopg
     from policy_hybrid import retrieve
-    domain=json.loads((Path(sys.argv[1])/"manifest.json").read_text())["business_plugin"].split("_")[0]
+    domain=sys.argv[2] if len(sys.argv)>2 else json.loads((Path(sys.argv[1])/"manifest.json").read_text())["business_plugin"].split("_")[0]
     with psycopg.connect(os.environ["ARINOVA_POLICY_DSN"]) as conn:
         return json.dumps(retrieve(conn,domain,question))
-if os.getenv("ARINOVA_POLICY_PDF_ONLY")=="1":
+if len(sys.argv)>2 or os.getenv("ARINOVA_POLICY_PDF_ONLY")=="1":
     server.tool()(search_documents)
 else:
     server.tool()(lookup_policy)
