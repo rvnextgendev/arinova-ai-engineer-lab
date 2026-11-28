@@ -170,6 +170,26 @@ def central_action(q:CentralRequest):
         if q.action=="generate":return reg.generate(q.id)
         raise ValueError("Unknown action")
     except (ValueError,FileExistsError) as e:raise HTTPException(400,str(e))
+class StudioRequest(BaseModel):
+    id:str
+    action:str
+    requirement:str=""
+    expected:str=""
+@app.get("/factory/studios")
+def studios():
+    from central_studios import STUDIOS
+    return [{"id":s.id,"allowed":s.allowed} for s in STUDIOS.values()]
+@app.get("/factory/evidence/{id}")
+def studio_evidence(id:str):
+    from central_projects import registry
+    from central_studios import evidence
+    return evidence(registry(),id)
+@app.post("/factory/studio")
+def studio_action(q:StudioRequest):
+    from central_projects import registry
+    from central_studios import run
+    try:return run(registry(),q.id,q.action,q.requirement,q.expected)
+    except (ValueError,OSError) as e:raise HTTPException(400,str(e))
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host="127.0.0.1",port=8790)
