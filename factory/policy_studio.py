@@ -313,6 +313,36 @@ def release_download(id:str):
     path=Path(evidence(reg,id)["deliver"]["package"])
     if path.resolve().parent!=(ROOT/"factory-state"/"releases").resolve():raise HTTPException(400,"Invalid package")
     return FileResponse(path,filename=path.name)
+class ReferenceRequest(BaseModel):
+    id:str=""
+    action:str
+    value:str=""
+    quantity:int=1
+@app.get("/factory/reference/catalog")
+def reference_catalog():
+    from reference_workflows import SPECS
+    return SPECS
+@app.post("/factory/reference")
+def reference_action(q:ReferenceRequest):
+    from reference_workflows import SPECS,run
+    from central_projects import registry
+    import uuid
+    reg=registry()
+    try:
+        if q.action=="setup":
+            require()
+            result=[]
+            suffix=uuid.uuid4().hex[:8]
+            for kind,spec in SPECS.items():
+                id="ref-"+kind+"-"+suffix
+                reg.create(id,"Reference enterprise",spec["architecture"],kind)
+                reg.configure(id,[])
+                reg.plan(id)
+                result.append(reg.generate(id))
+            return result
+        require(q.id,("approver",) if q.action=="approve" else ("developer","viewer","quality","approver","release") if q.action=="view" else ("developer",))
+        return run(reg,q.id,q.action,q.value,q.quantity)
+    except ValueError as e:raise HTTPException(400,str(e))
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host="127.0.0.1",port=8790)
