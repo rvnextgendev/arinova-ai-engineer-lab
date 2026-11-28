@@ -1,0 +1,4 @@
+# Paired reference demo
+Start python factory/policy_studio.py and visit http://127.0.0.1:8790/factory/demo. Generate HR + IT projects, run eight acceptance checks, compare shared core and runtime hashes, ask each assistant using offline fixtures or local Ollama. Projects persist in the central registry; select their IDs in /factory to continue development, quality, approval and delivery. Each generation uses unique IDs. All policies are fictional.
+Run python -m unittest discover -s factory -p "test_central*.py" -v.
+Offline checks validate keyword retrieval, citations, abstention and human review flags. Ollama answers are not independently evaluated. PDF RAG, LangGraph, Deep Agents and MCP remain separate Policy Studio workflows; capability selections do not activate them in generated reference projects. No real tenant authorization or production certification. Runtime tests still required.
