@@ -1,10 +1,11 @@
 """Optional local PDF ingestion and pgvector hybrid retrieval. Fictional data only."""
 import json
+import os
 from urllib.request import Request,urlopen
 from pathlib import Path
 
 def embed(text):
-    req=Request("http://127.0.0.1:11434/api/embed",data=json.dumps({"model":"nomic-embed-text","input":text}).encode(),headers={"Content-Type":"application/json"})
+    req=Request(os.getenv("ARINOVA_OLLAMA_URL","http://127.0.0.1:11434").rstrip("/")+"/api/embed",data=json.dumps({"model":"nomic-embed-text","input":text}).encode(),headers={"Content-Type":"application/json"})
     with urlopen(req,timeout=60) as res: v=json.load(res)["embeddings"][0]
     if len(v)!=768: raise ValueError("Expected 768 dimensions")
     return "["+",".join(map(str,v))+"]"
