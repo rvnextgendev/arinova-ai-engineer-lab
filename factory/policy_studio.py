@@ -105,6 +105,24 @@ async def execute(q:Query):
             import traceback
             traceback.print_exc()
     return StreamingResponse(events(),media_type="application/x-ndjson")
+class DeliveryRequest(BaseModel):
+    action:str
+    domain:str=""
+    job:str=""
+    requirement:str=""
+    digest:str=""
+@app.post("/delivery")
+def delivery(q:DeliveryRequest):
+    import policy_delivery as d
+    try:
+        if q.action=="prepare":
+            if not 1<=len(q.requirement.strip())<=4000: raise ValueError("Requirement required")
+            return d.prepare(q.domain,project(q.domain),q.requirement)
+        if q.action=="review": return d.review(q.job)
+        if q.action=="approve": return d.approve(q.job,q.digest)
+        if q.action=="deliver": return d.deliver(q.job)
+        raise ValueError("Invalid action")
+    except (ValueError,OSError) as exc: raise HTTPException(400,str(exc))
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host="127.0.0.1",port=8790)
