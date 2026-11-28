@@ -146,9 +146,12 @@ class CentralRequest(BaseModel):
     customer:str=""
     requirements:str=""
     capabilities:list[str]=[]
+@app.get("/factory/legacy-ui",response_class=HTMLResponse)
+def old_central_home():
+    return Path(__file__).with_name("central_studio.html").read_text(encoding="utf-8")
 @app.get("/factory",response_class=HTMLResponse)
 def central_home():
-    return Path(__file__).with_name("central_studio.html").read_text(encoding="utf-8")
+    return Path(__file__).with_name("unified_studio.html").read_text(encoding="utf-8")
 @app.get("/factory/catalog")
 def central_catalog():
     from central_core import catalog,VERSION
