@@ -137,6 +137,39 @@ def architect_run(q:LabRequest):
     try:return execute(q.module,q.text)
     except ValueError as e:raise HTTPException(400,str(e))
     except Exception as e:raise HTTPException(503,type(e).__name__+"; check local dependencies")
+class CentralRequest(BaseModel):
+    action:str
+    id:str
+    customer:str=""
+    requirements:str=""
+    capabilities:list[str]=[]
+@app.get("/factory",response_class=HTMLResponse)
+def central_home():
+    return Path(__file__).with_name("central_studio.html").read_text(encoding="utf-8")
+@app.get("/factory/catalog")
+def central_catalog():
+    from central_core import catalog,VERSION
+    return {"version":VERSION,"capabilities":catalog()}
+@app.get("/factory/projects")
+def central_list():
+    from central_projects import registry
+    return registry().list()
+@app.get("/factory/projects/{id}")
+def central_get(id:str):
+    from central_projects import registry
+    try:return registry().get(id)
+    except ValueError as e:raise HTTPException(404,str(e))
+@app.post("/factory/action")
+def central_action(q:CentralRequest):
+    from central_projects import registry
+    reg=registry()
+    try:
+        if q.action=="create":return reg.create(q.id,q.customer,q.requirements)
+        if q.action=="configure":return reg.configure(q.id,q.capabilities)
+        if q.action=="plan":return reg.plan(q.id)
+        if q.action=="generate":return reg.generate(q.id)
+        raise ValueError("Unknown action")
+    except (ValueError,FileExistsError) as e:raise HTTPException(400,str(e))
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host="127.0.0.1",port=8790)
