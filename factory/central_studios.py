@@ -13,6 +13,7 @@ def snapshot(root):
         if p.is_symlink():raise ValueError("Symlinks not allowed")
         if any(x in (".git","__pycache__") for x in p.relative_to(root).parts):continue
         if p.is_file():
+            if p.name==".env" or p.name.startswith(".env.") or p.suffix.lower() in (".pem",".key",".pfx"):raise ValueError("Potential secret file rejected")
             if p.stat().st_size>2_000_000 or len(files)>=300:raise ValueError("Artifact limit exceeded")
             files[p.relative_to(root).as_posix()]=p.read_bytes()
     return files
@@ -42,6 +43,11 @@ class Studio:
 def develop(ctx):
     import policy_delivery as d
     job=d.prepare(ctx["id"],ctx["root"],ctx["requirement"] or ctx["requirements"])
+    # Copy deployment scaffolding before testing and approval, not after.
+    import shutil
+    for name in ("requirements.md","architecture-plan.json","enterprise_auth.py","customer_api.py","requirements.txt","Dockerfile",".dockerignore","DEPLOYMENT.md"):
+        source=ctx["root"]/name
+        if source.is_file():shutil.copyfile(source,Path(job["workspace"])/name)
     return "development_prepared",job
 
 def execute(ctx):
@@ -64,7 +70,7 @@ def quality(ctx):
 def approve(ctx):
     current=digest(snapshot(ctx["workspace"]))
     if current!=ctx["evidence"]["quality"]["digest"] or current!=ctx["expected"]:raise ValueError("Snapshot changed or digest not confirmed; rerun quality")
-    return "approved",{"digest":current,"reviewer":"local operator"}
+    return "approved",{"digest":current,"reviewer":ctx["reviewer"]}
 
 def deliver(ctx):
     files=snapshot(ctx["workspace"]);current=digest(files)
@@ -84,7 +90,7 @@ STUDIOS={s.id:s for s in (
     Studio("quality",("developed","quality_failed","quality_passed","approved"),quality),
     Studio("approve",("quality_passed",),approve),
     Studio("deliver",("approved",),deliver))}
-def run(reg,id,action,requirement="",expected="",runner=docker_tests):
+def run(reg,id,action,requirement="",expected="",runner=docker_tests,reviewer="local operator"):
     if action not in STUDIOS:raise ValueError("Unknown studio")
     plugin=STUDIOS[action]
     # Serialize transitions; local pilot only. Long jobs hold a DB write lock.
@@ -96,7 +102,7 @@ def run(reg,id,action,requirement="",expected="",runner=docker_tests):
         evidence={x[0]:json.loads(x[1]) for x in c.execute("SELECT action,data FROM studio_evidence WHERE project=?",(id,))}
         root=Path(row["artifact"])
         if root.resolve()!= (reg.output/id).resolve():raise ValueError("Invalid project artifact")
-        ctx=dict(row);ctx.update(root=root,plan=json.loads(row["plan"]),evidence=evidence,requirement=requirement,expected=expected,runner=runner)
+        ctx=dict(row);ctx.update(root=root,plan=json.loads(row["plan"]),evidence=evidence,requirement=requirement,expected=expected,runner=runner,reviewer=reviewer)
         if "develop" in evidence:ctx["workspace"]=Path(evidence["develop"]["workspace"])
         stage,result=plugin.handler(ctx)
         if action in ("execute","quality"):c.execute("DELETE FROM studio_evidence WHERE project=? AND action IN ('approve','deliver')",(id,))
