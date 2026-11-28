@@ -138,6 +138,7 @@ def architect_run(q:LabRequest):
     except ValueError as e:raise HTTPException(400,str(e))
     except Exception as e:raise HTTPException(503,type(e).__name__+"; check local dependencies")
 class CentralRequest(BaseModel):
+    template:str="generic"
     action:str
     id:str
     customer:str=""
@@ -164,7 +165,7 @@ def central_action(q:CentralRequest):
     from central_projects import registry
     reg=registry()
     try:
-        if q.action=="create":return reg.create(q.id,q.customer,q.requirements)
+        if q.action=="create":return reg.create(q.id,q.customer,q.requirements,q.template)
         if q.action=="configure":return reg.configure(q.id,q.capabilities)
         if q.action=="plan":return reg.plan(q.id)
         if q.action=="generate":return reg.generate(q.id)
@@ -189,6 +190,27 @@ def studio_action(q:StudioRequest):
     from central_projects import registry
     from central_studios import run
     try:return run(registry(),q.id,q.action,q.requirement,q.expected)
+    except (ValueError,OSError) as e:raise HTTPException(400,str(e))
+class DemoRequest(BaseModel):
+    action:str
+    id:str=""
+    hr:str=""
+    it:str=""
+    question:str=""
+    provider:str="offline"
+@app.get("/factory/demo",response_class=HTMLResponse)
+def demo_home():
+    return Path(__file__).with_name("central_policy_demo.html").read_text(encoding="utf-8")
+@app.post("/factory/demo")
+def demo_action(q:DemoRequest):
+    from central_projects import registry
+    import central_policy_demo as d
+    reg=registry()
+    try:
+        if q.action=="setup":return d.setup(reg)
+        if q.action=="query":return d.query(reg,q.id,q.question,q.provider)
+        if q.action=="compare":return d.compare(reg,q.hr,q.it)
+        raise ValueError("Unknown demo action")
     except (ValueError,OSError) as e:raise HTTPException(400,str(e))
 if __name__=="__main__":
     import uvicorn
