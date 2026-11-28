@@ -15,11 +15,17 @@ POLICIES={
 {"id":"IT-003","keywords":"software install installation unapproved","text":"Demo policy: unapproved software requires IT security authorization."},
 {"id":"IT-004","keywords":"device laptop compliance compliant","text":"Demo policy: report non-compliant devices to Technology Support."}]}
 
-def build(domain, output):
+POLICIES["azure"]=[
+{"id":"AZ-001","keywords":"region regions location locations permitted","text":"Fictional demo: deploy resources only in East US and West Europe."},
+{"id":"AZ-002","keywords":"tag tags tagging costcenter owner","text":"Fictional demo: resources require Owner and CostCenter tags."},
+{"id":"AZ-003","keywords":"encryption encrypted storage","text":"Fictional demo: storage must use encryption at rest."},
+{"id":"AZ-004","keywords":"public access network exposure","text":"Fictional demo: public network access requires security review."}]
+
+def build(domain, output, project_id=None, capabilities=None):
     if domain not in POLICIES:
-        raise ValueError("Choose hr or it")
+        raise ValueError("Choose hr, it or azure")
     root=Path(__file__).parent
-    dest=generate({"project":domain+"-policy-assistant","business_plugin":domain+"_policy","model":"ollama","capabilities":{}},output)
+    dest=generate({"project":project_id or domain+"-policy-assistant","business_plugin":domain+"_policy","model":"ollama","capabilities":capabilities or {}},output)
     try:
         shutil.copyfile(root/"policy_core.py",dest/"arinova_core.py")
         (dest/"policies.json").write_text(json.dumps(POLICIES[domain],indent=2),encoding="utf-8")
@@ -29,11 +35,13 @@ def build(domain, output):
         web=web.replace("<option>offline</option><option selected>ollama</option><option>groq</option><option>openai</option>","<option>ollama</option><option>offline</option>").replace("Offline mode uses sample DTC evidence, not an LLM.","Ollama runs locally. Offline mode is a deterministic test fallback.")
         web=web.replace('id="live" hidden','id="live"').replace("Optional context","Unused context (policy evidence is retrieved automatically)").replace("Cloud calls are disabled unless ARINOVA_ALLOW_CLOUD=1. Ollama uses the local endpoint.","Only local Ollama is supported; leave model blank for the configured default.")
         samples=["What is annual leave?","What is remote work policy?","What is password length?"] if domain=="hr" else ["Do I need VPN?","What is password length?","Approve software installation"]
+        if domain=="azure": samples=["Which regions are permitted?","What tags are required?","Approve public access"]
         for old,new in zip(["Explain P0302","Explain P0456","Explain P9999"],samples): web=web.replace(old,new)
         (dest/"web_app.py").write_text(web,encoding="utf-8")
-        (dest/"agent-task.md").write_text("Inspect existing code and reuse-report.json. Preserve the shared retrieval core. "+("Add IT-005: suspected security incidents must be reported to Technology Support. Add keywords and tests for incident retrieval and exception review." if domain=="it" else "Add a fictional HR training policy and tests.")+" Run all tests. Do not deploy or modify the original project. Report changes.\n",encoding="utf-8")
+        (dest/"agent-task.md").write_text("Inspect existing code and reuse-report.json. Preserve the shared retrieval core. "+("Add IT-005: suspected security incidents must be reported to Technology Support. Add keywords and tests for incident retrieval and exception review." if domain=="it" else ("Add a fictional Azure diagnostic logging policy and tests." if domain=="azure" else "Add a fictional HR training policy and tests."))+" Run all tests. Do not deploy or modify the original project. Report changes.\n",encoding="utf-8")
         shutil.copyfile(root/"policy_runtime.py",dest/"runtime.py")
         sample="annual leave" if domain=="hr" else "password length"
+        if domain=="azure": sample="required tags"
         code=POLICIES[domain][0 if domain=="hr" else 1]["id"]
         unknown="password length" if domain=="hr" else "annual leave"
         (dest/"test_app.py").write_text(f'import unittest\nfrom app import run\nclass PolicyTests(unittest.TestCase):\n    def test_known(self):\n        self.assertEqual(run({sample!r})["citations"], [{code!r}])\n    def test_other_domain(self):\n        self.assertEqual(run({unknown!r})["status"], "needs_review")\n    def test_empty(self):\n        with self.assertRaises(ValueError): run(" ")\n    def test_approval(self):\n        self.assertEqual(run({"approve "+sample!r})["status"], "needs_review")\n',encoding="utf-8")
@@ -46,7 +54,7 @@ def build(domain, output):
 
 if __name__=="__main__":
     p=argparse.ArgumentParser()
-    p.add_argument("domain",choices=["hr","it"])
+    p.add_argument("domain",choices=["hr","it","azure"])
     p.add_argument("--output",default="generated")
     a=p.parse_args()
     print(build(a.domain,a.output))
