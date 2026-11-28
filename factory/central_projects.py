@@ -30,7 +30,7 @@ class Registry:
     def list(self):
         with closing(self.connect()) as c:return [dict(x) for x in c.execute("SELECT id,customer,stage FROM projects ORDER BY id")]
     def create(self,id,customer,requirements,template="generic"):
-        if template not in ("generic","hr","it","azure"):raise ValueError("Invalid template")
+        if template not in ("generic","hr","it","azure","custom"):raise ValueError("Invalid template")
         if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}",id):raise ValueError("Invalid project ID")
         if not 1<=len(customer.strip())<=120 or not 1<=len(requirements.strip())<=8000:raise ValueError("Customer and requirements required")
         try:
@@ -70,11 +70,17 @@ class Registry:
             selected=json.loads(row["capabilities"])
             caps={k:True for k in selected if k in CAPABILITIES}
             template=json.loads(row["plan"]).get("template","generic")
-            if template!="generic":
+            if template=="custom":
+                from custom_application import build_custom
+                dest=build_custom(id,self.output,caps,row["requirements"])
+            elif template!="generic":
                 from policy_pilot import build
                 dest=build(template,self.output,id,caps)
             else: dest=generate({"project":id,"business_plugin":id.replace("-","_"),"model":"ollama","capabilities":caps},self.output)
             try:
+                if template!="generic":
+                    from custom_application import package_scaffold
+                    package_scaffold(dest)
                 (dest/"architecture-plan.json").write_text(row["plan"],encoding="utf-8")
                 (dest/"requirements.md").write_text(row["requirements"],encoding="utf-8")
                 c.execute("UPDATE projects SET stage='generated',artifact=? WHERE id=?",(str(dest),id))
