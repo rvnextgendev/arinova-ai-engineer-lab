@@ -6,7 +6,7 @@ from openhands.tools.terminal import TerminalTool
 from openhands.tools.file_editor import FileEditorTool
 
 def main():
-    llm=LLM(model=os.environ["ARINOVA_OPENHANDS_MODEL"],base_url=os.environ["ARINOVA_OPENHANDS_URL"],api_key="local-ollama")
+    llm=LLM(model=os.environ["ARINOVA_OPENHANDS_MODEL"],base_url=os.environ["ARINOVA_OPENHANDS_URL"],api_key="local-ollama",reasoning_effort=None,enable_encrypted_reasoning=False)
     agent=Agent(llm=llm,tools=[Tool(name=TerminalTool.name),Tool(name=FileEditorTool.name)])
     conversation=Conversation(agent=agent,workspace="/workspace")
     task=Path("/workspace/agent-task.md").read_text(encoding="utf-8")
