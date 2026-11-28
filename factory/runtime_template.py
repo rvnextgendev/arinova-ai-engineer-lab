@@ -10,16 +10,19 @@ PROVIDERS = {
     "openai": ("https://api.openai.com/v1/chat/completions", "OPENAI_API_KEY"),
 }
 
-def run(question, provider="offline", model="", context=""):
+def run(question, provider="ollama", model="", context=""):
     if not isinstance(question,str) or not question.strip() or len(question)>2000:
         raise ValueError("Question must contain 1-2000 characters")
     if provider == "offline":
         return execute(question)
+    if provider=="ollama": model=model.strip() or os.getenv("ARINOVA_CHAT_MODEL","llama3.2:latest")
     if provider not in PROVIDERS or not model.strip():
         raise ValueError("Select a supported provider and model")
     if len(context)>24000:
         raise ValueError("Context exceeds 24000 characters")
     url,key = PROVIDERS[provider]
+    if provider=="ollama": url=os.getenv("ARINOVA_OLLAMA_URL","http://127.0.0.1:11434").rstrip("/")+"/v1/chat/completions"
+    elif os.getenv("ARINOVA_ALLOW_CLOUD","0")!="1": raise ValueError("Cloud providers disabled; explicitly enable ARINOVA_ALLOW_CLOUD=1")
     headers = {"Content-Type":"application/json"}
     if key:
         token=os.environ.get(key)
