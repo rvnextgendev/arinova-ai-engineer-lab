@@ -62,8 +62,8 @@ def execute_job(job):
     name="arinova-agent-"+job
     cmd=["docker","run","--rm","--name",name,"--cap-drop","ALL","--security-opt","no-new-privileges","--memory","2g","--pids-limit","128","--mount",f"type=bind,source={w.resolve()},target=/workspace","-e","ARINOVA_OPENHANDS_MODEL="+os.getenv("ARINOVA_OPENHANDS_MODEL","ollama_chat/qwen2.5-coder:7b"),"-e","ARINOVA_OPENHANDS_URL="+os.getenv("ARINOVA_OPENHANDS_URL","http://host.docker.internal:11434"),"arinova-openhands-worker"]
     try:
-        result=subprocess.run(cmd,capture_output=True,text=True,timeout=900)
-        return {"exit_code":result.returncode,"log":(result.stdout+result.stderr)[-24000:],"review":review(job)}
+        result=subprocess.run(cmd,capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=900)
+        return {"exit_code":result.returncode,"log":((result.stdout or "")+(result.stderr or ""))[-24000:],"review":review(job)}
     except subprocess.TimeoutExpired:
         subprocess.run(["docker","rm","-f",name],capture_output=True,timeout=30)
         raise ValueError("OpenHands task timed out")
