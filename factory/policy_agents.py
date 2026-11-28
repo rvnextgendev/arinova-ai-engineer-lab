@@ -30,7 +30,7 @@ def policy_tools(project):
             return json.dumps(retrieve(conn,domain,question))
     return [search_documents] if os.getenv("ARINOVA_POLICY_PDF_ONLY")=="1" else [lookup_policy,list_policies]
 
-async def run(project,question,engine):
+async def run(project,question,engine,emit=None):
     llm=model()
     tools=policy_tools(project)
     instruction="Use policy tools before answering. Cite returned policy IDs. Do not invent policies or approve requests. Escalate approval requests to a human."
@@ -49,7 +49,17 @@ async def run(project,question,engine):
     else:
         from langchain.agents import create_agent
         agent=create_agent(llm,tools=tools,system_prompt=instruction)
-    result=await agent.ainvoke({"messages":[{"role":"user","content":question}]},config={"recursion_limit":20})
+    config={"recursion_limit":20}
+    if emit:
+        from langchain_core.callbacks import AsyncCallbackHandler
+        class Trace(AsyncCallbackHandler):
+            async def on_chat_model_start(self,serialized,messages,**kwargs): await emit("model_start",{})
+            async def on_llm_end(self,response,**kwargs): await emit("model_end",{})
+            async def on_tool_start(self,serialized,input_str,**kwargs): await emit("tool_start",{"tool":(serialized or {}).get("name","tool"),"input":input_str})
+            async def on_tool_end(self,output,**kwargs): await emit("tool_end",{"output":str(output)[:12000]})
+            async def on_tool_error(self,error,**kwargs): await emit("tool_error",{"error":type(error).__name__})
+        config["callbacks"]=[Trace()]
+    result=await agent.ainvoke({"messages":[{"role":"user","content":question}]},config=config)
     return [{"type":m.type,"content":m.content,"tool_calls":getattr(m,"tool_calls",[])} for m in result["messages"]]
 
 if __name__=="__main__":
