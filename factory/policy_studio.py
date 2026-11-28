@@ -76,15 +76,30 @@ def rag(domain,question):
 @app.post("/execute")
 async def execute(q:Query):
     p=project(q.domain)
-    if q.engine not in ("rag","langgraph","deep","mcp") or not 1<=len(q.question.strip())<=2000: raise HTTPException(400,"Invalid question or engine")
+    if q.engine not in ("rag","langgraph","deep","mcp","compare") or not 1<=len(q.question.strip())<=2000: raise HTTPException(400,"Invalid question or engine")
     async def events():
         start=time.monotonic()
         def line(stage,**kw): return json.dumps({"stage":stage,**kw},default=str)+"\n"
         yield line("validated",domain=q.domain,engine=q.engine)
         yield line("running",message="Retrieving policy evidence and calling local Ollama")
         try:
-            result=await asyncio.to_thread(rag,q.domain,q.question) if q.engine=="rag" else await run(p,q.question,q.engine)
-            yield line("completed",result=result,seconds=round(time.monotonic()-start,2))
+            queue=asyncio.Queue()
+            async def emit(stage,data): await queue.put(line(stage,**data))
+            async def work():
+                if q.engine=="compare":
+                    from policy_compare import compare
+                    return await compare(p,q.domain,q.question,rag,run,emit)
+                if q.engine=="rag": return await asyncio.to_thread(rag,q.domain,q.question)
+                return await run(p,q.question,q.engine,emit)
+            task=asyncio.create_task(work())
+            try:
+                while not task.done() or not queue.empty():
+                    try: yield await asyncio.wait_for(queue.get(),timeout=0.5)
+                    except asyncio.TimeoutError: pass
+                result=await task
+                yield line("completed",result=result,seconds=round(time.monotonic()-start,2))
+            finally:
+                if not task.done(): task.cancel()
         except Exception as exc:
             yield line("failed",error=type(exc).__name__,message="Check server console, database and Ollama configuration")
             import traceback
