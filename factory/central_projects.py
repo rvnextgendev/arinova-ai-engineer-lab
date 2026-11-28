@@ -30,7 +30,7 @@ class Registry:
     def list(self):
         with closing(self.connect()) as c:return [dict(x) for x in c.execute("SELECT id,customer,stage FROM projects ORDER BY id")]
     def create(self,id,customer,requirements,template="generic"):
-        if template not in ("generic","hr","it","azure","custom"):raise ValueError("Invalid template")
+        if template not in ("generic","hr","it","azure","custom","acquisition","invoice","commerce","enterprise"):raise ValueError("Invalid template")
         if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}",id):raise ValueError("Invalid project ID")
         if not 1<=len(customer.strip())<=120 or not 1<=len(requirements.strip())<=8000:raise ValueError("Customer and requirements required")
         try:
@@ -58,6 +58,9 @@ class Registry:
             t=c.execute("SELECT template FROM project_templates WHERE project=?",(id,)).fetchone()
             template=t[0] if t else "generic"
             plan={"template":template,"core_version":VERSION,"provider":"ollama","components":[{"id":k,"status":CATALOG[k][2],"source":CATALOG[k][3],"integration":"requires customer wiring"} for k in caps],"requirements":row["requirements"],"generation_scope":("Generic DTC fixture starter" if template=="generic" else "Shared policy keyword retrieval and local Ollama adapter")+"; other selected adapters are not automatically activated"}
+            from reference_workflows import SPECS
+            if template in SPECS:
+                plan.update(provider="none",generation_scope=SPECS[template]["architecture"],runtime="Python deterministic reference workflow",components=[])
             c.execute("UPDATE projects SET plan=?,stage='planned' WHERE id=?",(json.dumps(plan),id))
             self.event(c,id,"planned","Architecture inventory and integration gaps recorded")
         return self.get(id)
@@ -70,7 +73,11 @@ class Registry:
             selected=json.loads(row["capabilities"])
             caps={k:True for k in selected if k in CAPABILITIES}
             template=json.loads(row["plan"]).get("template","generic")
-            if template=="custom":
+            from reference_workflows import SPECS
+            if template in SPECS:
+                from reference_package import build
+                dest=build(id,self.output,template,row["requirements"])
+            elif template=="custom":
                 from custom_application import build_custom
                 dest=build_custom(id,self.output,caps,row["requirements"])
             elif template!="generic":
@@ -78,7 +85,7 @@ class Registry:
                 dest=build(template,self.output,id,caps)
             else: dest=generate({"project":id,"business_plugin":id.replace("-","_"),"model":"ollama","capabilities":caps},self.output)
             try:
-                if template!="generic":
+                if template not in SPECS and template!="generic":
                     from custom_application import package_scaffold
                     package_scaffold(dest)
                 (dest/"architecture-plan.json").write_text(row["plan"],encoding="utf-8")
