@@ -118,6 +118,7 @@ def delivery(q:DeliveryRequest):
         if q.action=="prepare":
             if not 1<=len(q.requirement.strip())<=4000: raise ValueError("Requirement required")
             return d.prepare(q.domain,project(q.domain),q.requirement)
+        if q.action=="execute": return d.execute_job(q.job)
         if q.action=="review": return d.review(q.job)
         if q.action=="approve": return d.approve(q.job,q.digest)
         if q.action=="deliver": return d.deliver(q.job)
